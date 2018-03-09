@@ -29,9 +29,18 @@ import (
     "strings"
 )
 
+type GrapError struct {
+    errorCode int
+    errorFunc func() string
+}
+
+func (e GrapError) Error() string {
+    return errorFunc()
+}
+
 const (
-    ERR_OK int = 0
-    ERR_GENERAL int = 42
+    ERR_GENERAL iota
+    ERR_OK iota             //OK should not be an error
 )
 
 func resultMessage(fileName string, res bool) string {
@@ -46,11 +55,11 @@ func resultMessage(fileName string, res bool) string {
     return result
 }
 
-func cliVerifyOneFile(fileName, referenceValueHexStr string, hashAlgo crypto.Hash) int {
+func cliVerifyOneFile(fileName, referenceValueHexStr string, hashAlgo crypto.Hash) error {
     referenceValue, err := hex.DecodeString(strings.TrimSpace(referenceValueHexStr))
     if err != nil {
         fmt.Printf("Unable to parse hash value: %v\n", err)
-        return ERR_GENERAL
+        return GrapErrorf(ERR_GENERAL)
     }
     
     refData := map[string][]byte {fileName: referenceValue}
@@ -58,24 +67,24 @@ func cliVerifyOneFile(fileName, referenceValueHexStr string, hashAlgo crypto.Has
     return verifyRefData(refData, hashAlgo)
 }
 
-func cliVerifyReferenceFile(refFileName string) int {   
+func cliVerifyReferenceFile(refFileName string) error {   
     file, err := os.Open(refFileName)
     if err != nil {
         fmt.Printf("Unable to open reference file: %v\n", err)
-        return ERR_GENERAL
+        return GrapErrorf(ERR_GENERAL)
     }
     defer file.Close()        
     
     referenceData, detectedAlgo, err := reffile.AttemptParse(file)
     if err != nil {
         fmt.Printf("Unable to parse reference file: %v\n", err)
-        return ERR_GENERAL
+        return GrapErrorf(ERR_GENERAL)
     }
     
     return verifyRefData(referenceData, detectedAlgo)
 }
 
-func verifyRefData(refData map[string][]byte, hashAlgo crypto.Hash) int {
+func verifyRefData(refData map[string][]byte, hashAlgo crypto.Hash) error {
     var hashFailCount uint = 0
     
     outFunc := func (fName string, res bool) {
@@ -87,24 +96,24 @@ func verifyRefData(refData map[string][]byte, hashAlgo crypto.Hash) int {
 
     if _, err := filehash.VerifyReferenceData(refData, hashAlgo, outFunc); err != nil {
         fmt.Println(err)
-        return ERR_GENERAL
+        return GrapErrorf(ERR_GENERAL)
     }
             
     if hashFailCount > 0 {
         fmt.Printf("There were %d FAILURES\n", hashFailCount)
-        return ERR_GENERAL
+        return GrapErrorf(ERR_GENERAL)
     }
     
-    return ERR_OK
+    return GrapErrorf(ERR_OK)
 }
 
-func cliHashFiles(filesToHash []string) int {
+func cliHashFiles(filesToHash []string) error {
     if err := reffile.Fill(os.Stdout, filesToHash); err != nil {
         fmt.Println(err)
-        return ERR_GENERAL
+        return GrapErrorf(ERR_GENERAL)
     }
     
-    return ERR_OK
+    return GrapErrorf(ERR_OK)
 }
  
 func main() {
@@ -139,8 +148,26 @@ func main() {
             
     default:
         flag.PrintDefaults()
-        resCode = ERR_GENERAL
+        os.Exit(GrapErrorf(ERR_GENERAL).errorCode)
     }    
     
     os.Exit(resCode)
+}
+
+func GrapErrorf(errorCode int) {
+    return GrapError {
+        errorCode: errorCode,
+        errorFunc: errorCodeTranslator(errorCode)
+    }
+}
+
+func errorCodeTranslator(errorCode int) string {
+    switch errorCode {
+    case ERR_GENERAL:
+        return "ERR_GENERAL"
+    case ERR_OK:
+        return "ERR_OK"
+    }
+    return "ERR_UNDEF"
+  
 }
