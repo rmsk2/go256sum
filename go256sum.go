@@ -29,18 +29,9 @@ import (
     "strings"
 )
 
-type GrapError struct {
-    errorCode int
-    errorFunc func() string
-}
-
-func (e GrapError) Error() string {
-    return errorFunc()
-}
-
 const (
-    ERR_GENERAL iota
-    ERR_OK iota             //OK should not be an error
+    ERR_OK int = iota
+    ERR_GENERAL 
 )
 
 func resultMessage(fileName string, res bool) string {
@@ -58,8 +49,7 @@ func resultMessage(fileName string, res bool) string {
 func cliVerifyOneFile(fileName, referenceValueHexStr string, hashAlgo crypto.Hash) error {
     referenceValue, err := hex.DecodeString(strings.TrimSpace(referenceValueHexStr))
     if err != nil {
-        fmt.Printf("Unable to parse hash value: %v\n", err)
-        return GrapErrorf(ERR_GENERAL)
+        return fmt.Errorf("Unable to parse hash value: %v", err)
     }
     
     refData := map[string][]byte {fileName: referenceValue}
@@ -70,15 +60,13 @@ func cliVerifyOneFile(fileName, referenceValueHexStr string, hashAlgo crypto.Has
 func cliVerifyReferenceFile(refFileName string) error {   
     file, err := os.Open(refFileName)
     if err != nil {
-        fmt.Printf("Unable to open reference file: %v\n", err)
-        return GrapErrorf(ERR_GENERAL)
+        return fmt.Errorf("Unable to open reference file: %v", err)
     }
     defer file.Close()        
     
     referenceData, detectedAlgo, err := reffile.AttemptParse(file)
     if err != nil {
-        fmt.Printf("Unable to parse reference file: %v\n", err)
-        return GrapErrorf(ERR_GENERAL)
+        return fmt.Errorf("Unable to parse reference file: %v", err)
     }
     
     return verifyRefData(referenceData, detectedAlgo)
@@ -96,28 +84,28 @@ func verifyRefData(refData map[string][]byte, hashAlgo crypto.Hash) error {
 
     if _, err := filehash.VerifyReferenceData(refData, hashAlgo, outFunc); err != nil {
         fmt.Println(err)
-        return GrapErrorf(ERR_GENERAL)
+        return err
     }
             
     if hashFailCount > 0 {
-        fmt.Printf("There were %d FAILURES\n", hashFailCount)
-        return GrapErrorf(ERR_GENERAL)
+        return fmt.Errorf("There were %d FAILURES", hashFailCount)
     }
     
-    return GrapErrorf(ERR_OK)
+    return nil
 }
 
 func cliHashFiles(filesToHash []string) error {
     if err := reffile.Fill(os.Stdout, filesToHash); err != nil {
         fmt.Println(err)
-        return GrapErrorf(ERR_GENERAL)
+        return err
     }
     
-    return GrapErrorf(ERR_OK)
+    return nil
 }
  
 func main() {
-    var resCode int
+    var resError error
+    var exitCode = ERR_GENERAL
     checkValPtr := flag.String("refval", "", "Reference value to check")
     checkFilePtr := flag.String("reffile", "", "Name of file containing reference values")    
     useSHA512Ptr := flag.Bool("use512", false, "Use SHA512 instead of SHA256 if present")
@@ -138,36 +126,24 @@ func main() {
         
     switch {
     case (*checkValPtr != "") && (len(flag.Args()) == 1) && (*checkFilePtr == ""):
-        resCode = cliVerifyOneFile(flag.Args()[0], *checkValPtr, reffile.CurrentAlgo())
+        resError = cliVerifyOneFile(flag.Args()[0], *checkValPtr, reffile.CurrentAlgo())
         
     case (*checkFilePtr != "") && (len(flag.Args()) == 0) && (*checkValPtr == ""):
-        resCode = cliVerifyReferenceFile(*checkFilePtr)
+        resError = cliVerifyReferenceFile(*checkFilePtr)
         
     case (*checkValPtr == "") && (*checkFilePtr == "") && (len(flag.Args()) >= 1):
-         resCode = cliHashFiles(flag.Args())
+         resError = cliHashFiles(flag.Args())
             
     default:
         flag.PrintDefaults()
-        os.Exit(GrapErrorf(ERR_GENERAL).errorCode)
+        os.Exit(exitCode)
     }    
     
-    os.Exit(resCode)
-}
-
-func GrapErrorf(errorCode int) {
-    return GrapError {
-        errorCode: errorCode,
-        errorFunc: errorCodeTranslator(errorCode)
+    if resError == nil {
+        exitCode = ERR_OK
+    } else {
+        fmt.Printf("%v\n", resError)
     }
-}
-
-func errorCodeTranslator(errorCode int) string {
-    switch errorCode {
-    case ERR_GENERAL:
-        return "ERR_GENERAL"
-    case ERR_OK:
-        return "ERR_OK"
-    }
-    return "ERR_UNDEF"
-  
+    
+    os.Exit(exitCode)
 }
