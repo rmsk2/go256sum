@@ -106,7 +106,7 @@ func main() {
     var exitCode = ERR_GENERAL
     checkValPtr := flag.String("refval", "", "Reference value to check")
     checkFilePtr := flag.String("reffile", "", "Name of file containing reference values")    
-    useSHA512Ptr := flag.Bool("use512", false, "Use SHA512 instead of SHA256 if present")
+    useSHA512Ptr := flag.Bool("use512", false, "Use SHA512 instead of SHA256 if option is present")
     useBSDPtr := flag.Bool("usebsd", false, "Use BSD format for output. More or less ignored for verification")
         
     flag.Parse()
