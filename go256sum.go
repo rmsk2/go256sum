@@ -83,7 +83,6 @@ func verifyRefData(refData map[string][]byte, hashAlgo crypto.Hash) error {
     }
 
     if _, err := filehash.VerifyReferenceData(refData, hashAlgo, outFunc); err != nil {
-        fmt.Println(err)
         return err
     }
             
@@ -96,7 +95,6 @@ func verifyRefData(refData map[string][]byte, hashAlgo crypto.Hash) error {
 
 func cliHashFiles(filesToHash []string) error {
     if err := reffile.Fill(os.Stdout, filesToHash); err != nil {
-        fmt.Println(err)
         return err
     }
     
