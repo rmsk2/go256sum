@@ -13,4 +13,4 @@ Usage:
     	Use BSD format for output. More or less ignored for verification
 
 ```
-
+Any files that are to be hashed can be specified after the options.
